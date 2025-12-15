@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub AI 插件控制台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #4facfe 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #1d1d1f;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header {
+            backdrop-filter: blur(30px) saturate(180%);
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #4facfe 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .config-section {
+            backdrop-filter: blur(30px) saturate(180%);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: 24px;
+        }
+
+        .config-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .config-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .config-row label {
+            font-weight: 600;
+            color: #1d1d1f;
+            min-width: 150px;
+            font-size: 14px;
+        }
+
+        .config-row input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: 'SF Mono', monospace;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s;
+        }
+
+        .config-row input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 968px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            backdrop-filter: blur(30px) saturate(180%);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 14px;
+            font-size: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+        }
+
+        button {
+            padding: 14px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #4facfe 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+
+        .repo-item {
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(102, 126, 234, 0.05);
+            margin-bottom: 12px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .repo-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .repo-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .repo-desc {
+            font-size: 14px;
+            color: #6e6e73;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .repo-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #86868b;
+        }
+
+        .repo-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+            padding: 16px;
+            background: rgba(102, 126, 234, 0.03);
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 14px;
+            max-width: 80%;
+            animation: slideIn 0.3s ease-out;
+            word-wrap: break-word;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #667eea 0%, #4facfe 100%);
+            color: white;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            color: #1d1d1f;
+        }
+
+        .loading {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: bounce 1.4s infinite;
+        }
+
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.7; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+
+        .status {
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .status.success {
+            background: rgba(52, 199, 89, 0.1);
+            color: #34c759;
+        }
+
+        .status.error {
+            background: rgba(255, 59, 48, 0.1);
+            color: #ff3b30;
+        }
+
+        .status.info {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✨ GitHub AI 插件控制台</h1>
+            <p style="color: #6e6e73; font-size: 15px;">搜索 GitHub 项目 · AI 代码助手 · 项目管理</p>
+        </div>
+
+        <div class="config-section">
+            <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #1d1d1f;">⚙️ API 配置</h2>
+            <div class="config-row">
+                <label>GitHub Token:</label>
+                <input type="password" id="githubToken" placeholder="可选，提高API速率限制">
+                <button onclick="saveConfig()" style="padding: 12px 20px;">保存配置</button>
+            </div>
+            <div class="config-row">
+                <label>DeepSeek API Key:</label>
+                <input type="password" id="deepseekKey" placeholder="必需，用于AI功能">
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- 搜索GitHub项目 -->
+            <div class="card">
+                <h2>🔍 搜索 GitHub 项目</h2>
+                <div id="searchStatus"></div>
+                <div class="input-group">
+                    <input type="text" id="searchInput" placeholder="例如：找一个 React 的待办事项应用">
+                    <button onclick="searchRepositories()">搜索</button>
+                </div>
+                <div class="results-container" id="searchResults"></div>
+            </div>
+
+            <!-- AI 对话助手 -->
+            <div class="card">
+                <h2>💬 AI 代码助手</h2>
+                <div id="chatStatus"></div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message assistant">
+                        👋 你好！我是你的 AI 代码助手。你可以问我任何关于代码的问题，或者让我帮你修改代码。
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="chatInput" placeholder="输入你的问题或需求..." onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 检查是否在 Electron 环境中
+        const isElectron = typeof window.electronAPI !== 'undefined';
+        
+        // 从 Electron 或 localStorage 加载配置
+        async function loadConfig() {
+            if (isElectron) {
+                const config = await window.electronAPI.getConfig();
+                if (config.githubToken) document.getElementById('githubToken').value = config.githubToken;
+                if (config.deepseekApiKey) document.getElementById('deepseekKey').value = config.deepseekApiKey;
+            } else {
+                const githubToken = localStorage.getItem('githubToken');
+                const deepseekKey = localStorage.getItem('deepseekKey');
+                if (githubToken) document.getElementById('githubToken').value = githubToken;
+                if (deepseekKey) document.getElementById('deepseekKey').value = deepseekKey;
+            }
+        }
+
+        // 保存配置
+        async function saveConfig() {
+            const githubToken = document.getElementById('githubToken').value;
+            const deepseekKey = document.getElementById('deepseekKey').value;
+            
+            if (isElectron) {
+                const result = await window.electronAPI.saveConfig({ githubToken, deepseekApiKey: deepseekKey });
+                if (result.success) {
+                    showStatus('searchStatus', '✅ 配置已保存', 'success');
+                } else {
+                    showStatus('searchStatus', '❌ 配置保存失败', 'error');
+                }
+            } else {
+                localStorage.setItem('githubToken', githubToken);
+                localStorage.setItem('deepseekKey', deepseekKey);
+                showStatus('searchStatus', '✅ 配置已保存', 'success');
+            }
+            setTimeout(() => document.getElementById('searchStatus').innerHTML = '', 2000);
+        }
+
+        // 显示状态消息
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // 解析自然语言查询
+        function parseNaturalLanguageQuery(query) {
+            let searchQuery = query.trim();
+            const stopWords = ['找一个', '搜索', '找', '帮我', '给我', '想要', '需要'];
+            stopWords.forEach(word => {
+                searchQuery = searchQuery.replace(new RegExp(word, 'gi'), '');
+            });
+
+            const languagePatterns = {
+                'python': 'language:python',
+                'javascript': 'language:javascript',
+                'typescript': 'language:typescript',
+                'react': 'language:javascript react',
+                'vue': 'language:javascript vue',
+                'java': 'language:java',
+                'go': 'language:go',
+                'rust': 'language:rust',
+            };
+
+            for (const [keyword, filter] of Object.entries(languagePatterns)) {
+                if (query.toLowerCase().includes(keyword)) {
+                    return `${searchQuery.replace(new RegExp(keyword, 'gi'), '').trim()} ${filter}`.trim();
+                }
+            }
+
+            return searchQuery || '*';
+        }
+
+        // 搜索 GitHub 仓库
+        async function searchRepositories() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                showStatus('searchStatus', '请输入搜索关键词', 'error');
+                return;
+            }
+            
+            showStatus('searchStatus', '正在搜索...', 'info');
+            document.getElementById('searchResults').innerHTML = '<div class="loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div>';
+
+            try {
+                let result;
+                if (isElectron) {
+                    // 使用 Electron API（无 CORS 问题）
+                    result = await window.electronAPI.searchRepositories(query);
+                } else {
+                    // 浏览器环境（可能有 CORS 问题）
+                    const githubToken = localStorage.getItem('githubToken');
+                    const searchQuery = parseNaturalLanguageQuery(query);
+                    const apiUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(searchQuery)}&sort=stars&order=desc&per_page=20`;
+                    
+                    const headers = {
+                        'Accept': 'application/vnd.github.v3+json',
+                    };
+                    if (githubToken) {
+                        headers['Authorization'] = `token ${githubToken}`;
+                    }
+
+                    try {
+                        const response = await fetch(apiUrl, { headers });
+                        if (!response.ok) {
+                            if (response.status === 403) {
+                                throw new Error('API 速率限制，请配置 GitHub Token');
+                            }
+                            throw new Error(`搜索失败: ${response.statusText}`);
+                        }
+                        const data = await response.json();
+                        result = {
+                            success: true,
+                            repositories: data.items,
+                            total_count: data.total_count
+                        };
+                    } catch (corsError) {
+                        throw new Error('浏览器 CORS 限制，请使用桌面应用程序版本');
+                    }
+                }
+
+                if (result.success && result.repositories && result.repositories.length > 0) {
+                    displaySearchResults(result.repositories);
+                    showStatus('searchStatus', `✅ 找到 ${result.total_count} 个结果，显示前 ${result.repositories.length} 个`, 'success');
+                } else {
+                    document.getElementById('searchResults').innerHTML = '<div style="padding: 20px; text-align: center; color: #6e6e73;">未找到匹配的项目</div>';
+                    showStatus('searchStatus', result.error || '未找到结果', 'info');
+                }
+                
+                setTimeout(() => document.getElementById('searchStatus').innerHTML = '', 3000);
+            } catch (error) {
+                showStatus('searchStatus', `❌ 错误: ${error.message}`, 'error');
+                document.getElementById('searchResults').innerHTML = `
+                    <div style="padding: 20px; background: rgba(255, 59, 48, 0.1); border-radius: 12px; color: #ff3b30;">
+                        <p style="margin-bottom: 12px; font-weight: 600;">⚠️ ${error.message}</p>
+                        <p style="font-size: 13px; color: #6e6e73; margin-bottom: 8px;">解决方案：</p>
+                        <ul style="font-size: 13px; color: #6e6e73; padding-left: 20px; line-height: 1.8;">
+                            <li>配置 GitHub Token（提高速率限制）</li>
+                            <li>检查网络连接</li>
+                            <li>使用桌面应用程序版本（推荐，无 CORS 限制）</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        // 显示搜索结果
+        function displaySearchResults(repos) {
+            const container = document.getElementById('searchResults');
+            if (!repos || repos.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #6e6e73;">未找到结果</div>';
+                return;
+            }
+
+            container.innerHTML = repos.map((repo, index) => `
+                <div class="repo-item" onclick="openRepo('${repo.html_url}')">
+                    <div class="repo-name">
+                        <span style="color: #86868b; font-size: 12px; margin-right: 8px;">#${index + 1}</span>
+                        ⭐ ${repo.full_name || repo.fullName || repo.name}
+                    </div>
+                    <div class="repo-desc">${repo.description || '无描述'}</div>
+                    <div class="repo-meta">
+                        <span>⭐ ${(repo.stargazers_count || repo.stars || 0).toLocaleString()}</span>
+                        <span>🍴 ${(repo.forks_count || repo.forks || 0).toLocaleString()}</span>
+                        ${repo.language ? `<span>💻 ${repo.language}</span>` : ''}
+                        ${repo.updated_at ? `<span>🕒 ${new Date(repo.updated_at).toLocaleDateString('zh-CN')}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 打开仓库链接
+        async function openRepo(url) {
+            if (isElectron) {
+                await window.electronAPI.openExternal(url);
+            } else {
+                window.open(url, '_blank');
+            }
+        }
+
+        // 发送 AI 消息
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // 检查 API Key
+            const deepseekKey = isElectron 
+                ? document.getElementById('deepseekKey').value
+                : localStorage.getItem('deepseekKey');
+            
+            if (!deepseekKey) {
+                showStatus('chatStatus', '请先配置 DeepSeek API Key', 'error');
+                return;
+            }
+
+            // 添加用户消息
+            addChatMessage('user', message);
+            input.value = '';
+
+            // 显示加载
+            const loadingId = addChatMessage('assistant', '<div class="loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div>', true);
+
+            try {
+                let result;
+                if (isElectron) {
+                    // 使用 Electron API（无 CORS 问题）
+                    result = await window.electronAPI.chatWithAI(message);
+                } else {
+                    // 浏览器环境
+                    const response = await fetch('https://api.deepseek.com/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${deepseekKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'deepseek-chat',
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: '你是一个专业的代码助手，可以帮助用户理解代码、修改代码、解答编程问题。用中文回答。'
+                                },
+                                {
+                                    role: 'user',
+                                    content: message
+                                }
+                            ],
+                            temperature: 0.7,
+                            max_tokens: 2000
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API 调用失败: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    result = {
+                        success: true,
+                        message: data.choices[0]?.message?.content || '抱歉，无法生成回复'
+                    };
+                }
+
+                if (result.success) {
+                    // 更新消息（支持 Markdown 简单格式化）
+                    let formattedMessage = result.message
+                        .replace(/\n/g, '<br>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/`(.*?)`/g, '<code style="background: rgba(102, 126, 234, 0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>');
+                    
+                    document.getElementById(loadingId).innerHTML = formattedMessage;
+                    showStatus('chatStatus', '', 'success');
+                } else {
+                    document.getElementById(loadingId).innerHTML = `❌ 错误: ${result.error}`;
+                    showStatus('chatStatus', 'AI 对话失败，请检查 API Key 是否正确', 'error');
+                }
+            } catch (error) {
+                const errorMsg = error.message || '未知错误';
+                document.getElementById(loadingId).innerHTML = `❌ 错误: ${errorMsg}`;
+                showStatus('chatStatus', 'AI 对话失败，请检查 API Key 是否正确', 'error');
+            }
+        }
+
+        // 添加聊天消息
+        function addChatMessage(role, content, isLoading = false) {
+            const container = document.getElementById('chatMessages');
+            const messageId = 'msg-' + Date.now();
+            const messageDiv = document.createElement('div');
+            messageDiv.id = messageId;
+            messageDiv.className = `message ${role}`;
+            messageDiv.innerHTML = content;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            return messageId;
+        }
+
+        // 页面加载时恢复配置
+        window.addEventListener('load', async () => {
+            await loadConfig();
+            
+            // Electron 环境：监听配置加载事件
+            if (isElectron) {
+                window.electronAPI.onConfigLoaded((config) => {
+                    if (config.githubToken) document.getElementById('githubToken').value = config.githubToken;
+                    if (config.deepseekApiKey) document.getElementById('deepseekKey').value = config.deepseekApiKey;
+                });
+            }
+            
+            document.body.style.opacity = '0';
+            setTimeout(() => {
+                document.body.style.transition = 'opacity 0.5s ease-out';
+                document.body.style.opacity = '1';
+            }, 100);
+        });
+    </script>
+</body>
+</html>

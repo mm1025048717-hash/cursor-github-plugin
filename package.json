@@ -1,0 +1,98 @@
+{
+  "name": "cursor-github-ai-plugin",
+  "displayName": "GitHub AI Plugin for Cursor",
+  "description": "使用自然语言搜索GitHub项目并自动下载，通过AI对话修改代码",
+  "version": "0.1.0",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other",
+    "AI",
+    "Git"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "githubAI.chat",
+        "title": "GitHub AI: 打开助手",
+        "category": "GitHub AI",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "githubAI.searchProject",
+        "title": "GitHub AI: 搜索项目",
+        "category": "GitHub AI"
+      },
+      {
+        "command": "githubAI.chatModify",
+        "title": "GitHub AI: 对话修改代码",
+        "category": "GitHub AI"
+      },
+      {
+        "command": "githubAI.openProject",
+        "title": "GitHub AI: 打开已下载项目",
+        "category": "GitHub AI"
+      },
+      {
+        "command": "githubAI.refreshProjects",
+        "title": "GitHub AI: 刷新项目列表",
+        "category": "GitHub AI"
+      }
+    ],
+    "configuration": {
+      "title": "GitHub AI Plugin",
+      "properties": {
+        "githubAI.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token (可选，提高API速率限制)",
+          "scope": "application"
+        },
+        "githubAI.deepseekApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "DeepSeek API Key (用于AI代码修改和意图理解)。获取地址: https://platform.deepseek.com/api_keys",
+          "scope": "application"
+        },
+        "githubAI.downloadPath": {
+          "type": "string",
+          "default": "${workspaceFolder}/github-projects",
+          "description": "项目下载路径",
+          "scope": "application"
+        },
+        "githubAI.maxSearchResults": {
+          "type": "number",
+          "default": 20,
+          "description": "最大搜索结果数量",
+          "scope": "application"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.0",
+    "simple-git": "^3.20.0",
+    "axios": "^1.6.0"
+  }
+}
+
