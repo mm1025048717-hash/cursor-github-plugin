@@ -15,7 +15,6 @@ export interface IntentResult {
 }
 
 export class AIIntentService {
-  private apiKey: string | null = null;
   private config: vscode.WorkspaceConfiguration;
   // DeepSeek API 文档: https://api-docs.deepseek.com/zh-cn/
   // base_url: https://api.deepseek.com
@@ -24,15 +23,20 @@ export class AIIntentService {
 
   constructor() {
     this.config = vscode.workspace.getConfiguration('githubAI');
-    // 从配置读取 API Key，如果未配置可以使用默认值（仅用于测试）
-    this.apiKey = this.config.get<string>('deepseekApiKey', '') || null;
+  }
+
+  private getApiKey(): string | null {
+    this.config = vscode.workspace.getConfiguration('githubAI');
+    const key = this.config.get<string>('deepseekApiKey', '') || '';
+    return key || null;
   }
 
   /**
    * 使用 AI 理解用户意图
    */
   async understandIntent(userQuery: string): Promise<IntentResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new Error('请先配置 DeepSeek API Key');
     }
 
@@ -83,7 +87,7 @@ export class AIIntentService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
           },
           timeout: 10000,
         }
@@ -187,7 +191,8 @@ export class AIIntentService {
    * 使用 AI 生成友好的回复
    */
   async generateResponse(intent: string, context?: any): Promise<string> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       return '请先配置 DeepSeek API Key';
     }
 
@@ -219,7 +224,7 @@ ${context ? `上下文：${JSON.stringify(context)}` : ''}
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
           },
           timeout: 15000,
         }

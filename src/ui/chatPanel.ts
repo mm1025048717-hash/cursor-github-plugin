@@ -14,6 +14,11 @@ export class ChatPanel {
   private aiCodeModifier: AICodeModifier;
   private context: vscode.ExtensionContext;
   private currentSearchResults: any[] = [];
+  private config: vscode.WorkspaceConfiguration = vscode.workspace.getConfiguration('githubAI');
+  private getNonce(): string {
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    return Array.from({ length: 32 }, () => possible.charAt(Math.floor(Math.random() * possible.length))).join('');
+  }
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -73,6 +78,9 @@ export class ChatPanel {
         switch (message.command) {
           case 'sendMessage':
             await this.currentPanel?.handleUserMessage(message.text);
+            break;
+          case 'saveKeys':
+            await this.currentPanel?.saveKeys(message.githubToken, message.deepseekKey);
             break;
         }
       },
@@ -306,149 +314,167 @@ export class ChatPanel {
     });
   }
 
+  private async saveKeys(githubToken: string, deepseekKey: string) {
+    const cfg = vscode.workspace.getConfiguration('githubAI');
+    if (githubToken !== undefined) {
+      await cfg.update('githubToken', githubToken, vscode.ConfigurationTarget.Global);
+    }
+    if (deepseekKey !== undefined) {
+      await cfg.update('deepseekApiKey', deepseekKey, vscode.ConfigurationTarget.Global);
+    }
+    // 重新加载配置以让新 Key 立即生效
+    this.config = vscode.workspace.getConfiguration('githubAI');
+    this.aiIntentService = new AIIntentService();
+    this.aiCodeModifier = new AICodeModifier();
+    this.sendMessageToWebview('assistant', '配置已保存，重新尝试你的指令即可。');
+  }
+
   private _update() {
     this._panel.webview.html = this._getHtmlForWebview();
   }
 
   private _getHtmlForWebview(): string {
+    const githubToken = this.config.get<string>('githubToken', '') || '';
+    const deepseekKey = this.config.get<string>('deepseekApiKey', '') || '';
+    const nonce = this.getNonce();
     return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GitHub AI 控制台</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._panel.webview.cspSource} https: data:; style-src ${this._panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src https: ${this._panel.webview.cspSource}; font-src ${this._panel.webview.cspSource} data:;">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: radial-gradient(circle at 20% 20%, rgba(116, 165, 255, 0.25), transparent 35%),
-                        radial-gradient(circle at 80% 0%, rgba(118, 75, 162, 0.25), transparent 30%),
-                        linear-gradient(135deg, #5f7cff 0%, #7c4dff 50%, #121826 100%);
+            background: linear-gradient(180deg, #f7faff 0%, #eef3fb 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            color: #e9ecf5;
-            padding: 28px 16px 24px;
+            color: #15223b;
+            padding: 16px;
         }
-        .shell {
-            width: min(1200px, 100%);
-            display: flex;
-            flex-direction: column;
+        .app {
+            width: min(1280px, 100%);
+            display: grid;
+            grid-template-columns: 280px 1fr;
             gap: 16px;
         }
-        .glass {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 18px;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+        @media (max-width: 960px) {
+            .app { grid-template-columns: 1fr; }
         }
-        .header {
-            padding: 18px 20px;
+        .panel {
+            background: #ffffff;
+            border: 1px solid #e6ebf5;
+            border-radius: 16px;
+            box-shadow: 0 12px 36px rgba(25, 61, 125, 0.08);
+            padding: 16px;
+        }
+        .side {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             gap: 12px;
         }
-        .title {
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f1b33;
+            margin-bottom: 10px;
+        }
+        .config-item {
             display: flex;
             flex-direction: column;
             gap: 6px;
+            padding: 12px;
+            background: #f8fbff;
+            border: 1px solid #e3eaf6;
+            border-radius: 12px;
+        }
+        .config-item label {
+            font-size: 12px;
+            color: #5a6887;
+        }
+        .config-item input {
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #d8e2f4;
+            background: #fff;
+            color: #15223b;
+        }
+        .config-item small {
+            color: #7b86a0;
+            font-size: 12px;
+        }
+        .config-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid #d6e3ff;
+            background: linear-gradient(180deg, #f8fbff 0%, #e8f0ff 100%);
+            color: #0f1b33;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .btn:hover { border-color: #a9c4ff; transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+        .quick-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .quick-item {
+            padding: 12px;
+            border-radius: 12px;
+            background: #f8fbff;
+            border: 1px solid #e3eaf6;
+            color: #15223b;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .quick-item:hover { background: #eaf1ff; border-color: #c9dafc; }
+        .main {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
         }
         .title h1 {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
-            background: linear-gradient(135deg, #c3d9ff 0%, #9cc4ff 50%, #e5d6ff 100%);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #0f1b33;
         }
         .title span {
             font-size: 13px;
-            color: #b9c2d8;
+            color: #5a6887;
         }
-        .badges {
+        .status {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
         }
         .badge {
             padding: 6px 10px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.08);
-            color: #d7def0;
+            border-radius: 10px;
+            background: #f4f6fb;
+            color: #2c3e66;
             font-size: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
+            border: 1px solid #e0e6f2;
         }
-        .layout {
-            display: grid;
-            grid-template-columns: 1.1fr 0.9fr;
-            gap: 16px;
-        }
-        @media (max-width: 960px) {
-            .layout { grid-template-columns: 1fr; }
-        }
-        .card {
-            padding: 16px;
-        }
-        .card h2 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #e8eeff;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .sub {
-            font-size: 13px;
-            color: #a9b4cc;
-            margin-bottom: 14px;
-            line-height: 1.5;
-        }
-        .pill-row {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 8px;
-        }
-        .pill {
-            padding: 10px 12px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: #dfe6f7;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .pill:hover {
-            background: rgba(255, 255, 255, 0.12);
-            transform: translateY(-1px);
-        }
-        .quick-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 10px;
-        }
-        .quick {
-            padding: 12px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: #dfe6f7;
-            font-size: 13px;
-            line-height: 1.5;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .quick:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
-        .quick strong { display: block; margin-bottom: 6px; font-size: 14px; color: #f3f6ff; }
-
         .chat-box {
-            height: 540px;
             display: flex;
             flex-direction: column;
+            height: 640px;
             gap: 12px;
         }
         .messages {
@@ -456,179 +482,160 @@ export class ChatPanel {
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            padding: 10px;
+            gap: 10px;
+            padding: 8px;
             scroll-behavior: smooth;
         }
         .messages::-webkit-scrollbar { width: 8px; }
-        .messages::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .messages::-webkit-scrollbar-thumb { background: #d3dcf2; border-radius: 4px; }
         .message {
             max-width: 86%;
-            padding: 14px 16px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(10px);
-            color: #e8eeff;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #e3e8f2;
+            background: #ffffff;
+            color: #1f2a44;
             font-size: 14px;
             line-height: 1.6;
-            animation: slideIn 0.25s ease-out;
+            animation: slideIn 0.2s ease-out;
             word-break: break-word;
         }
         @keyframes slideIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
         .message.user {
             align-self: flex-end;
-            background: linear-gradient(135deg, rgba(118, 153, 255, 0.9), rgba(141, 108, 255, 0.9));
-            color: #fff;
+            background: #eef4ff;
+            border-color: #d4e3ff;
         }
-        .message.loading { color: #cdd7ef; }
-        .message strong { color: #fff; }
+        .message.loading { color: #5a6787; }
         .message code {
-            background: rgba(0,0,0,0.25);
+            background: #f2f5fb;
             padding: 2px 6px;
             border-radius: 6px;
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            color: #1f2a44;
         }
         .repo-result {
-            margin: 10px 0;
+            margin: 8px 0;
             padding: 10px 12px;
-            border-radius: 12px;
-            background: rgba(118, 153, 255, 0.12);
-            border: 1px solid rgba(118, 153, 255, 0.18);
+            border-radius: 10px;
+            background: #f7f9fc;
+            border: 1px solid #e3e8f2;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s;
         }
-        .repo-result:hover { background: rgba(118, 153, 255, 0.2); transform: translateX(4px); }
-        .repo-name { font-weight: 600; margin-bottom: 4px; color: #dfe6ff; }
-        .repo-desc { font-size: 13px; color: #b7c1da; margin-bottom: 4px; }
-        .repo-meta { font-size: 12px; color: #9fb0d4; }
-
+        .repo-result:hover { background: #eaf1ff; border-color: #d4e3ff; }
         .input-area {
             display: flex;
             gap: 10px;
-            padding: 8px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.07);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 12px;
+            background: #f7f9fc;
+            border: 1px solid #e3e8f2;
         }
         #messageInput {
             flex: 1;
-            background: rgba(0,0,0,0.25);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px;
+            background: #fff;
+            border: 1px solid #d9e2f2;
+            border-radius: 8px;
             padding: 12px 14px;
-            color: #e8eeff;
+            color: #1f2a44;
             font-size: 14px;
             outline: none;
         }
-        #messageInput::placeholder { color: #9fb0d4; }
-        #sendButton {
-            padding: 12px 18px;
-            border: none;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #7ea4ff 0%, #9b7dff 100%);
-            color: #fff;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 8px 20px rgba(126,164,255,0.35);
-        }
-        #sendButton:hover { transform: translateY(-1px); }
-        #sendButton:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        #messageInput::placeholder { color: #7a869c; }
         .typing-indicator { display: inline-flex; gap: 5px; align-items: center; }
         .typing-dot {
-            width: 8px; height: 8px; border-radius: 50%; background: #bcd2ff;
+            width: 8px; height: 8px; border-radius: 50%; background: #abc7ff;
             animation: typing 1.4s infinite;
         }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
         .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.7;} 30% { transform: translateY(-8px); opacity: 1;} }
     </style>
 </head>
 <body>
-    <div class="shell">
-        <div class="glass header">
-            <div class="title">
-                <h1>✨ GitHub AI 控制台</h1>
-                <span>搜索 / 下载 / 修改 / 打开项目 · 深度联动 Cursor 工作区</span>
-            </div>
-            <div class="badges">
-                <span class="badge">GitHub Token：设置中</span>
-                <span class="badge">DeepSeek Key：设置中</span>
-                <span class="badge">工作区：自动识别</span>
-            </div>
-        </div>
-
-        <div class="layout">
-            <div class="glass card">
-                <h2>🚀 快捷操作</h2>
-                <p class="sub">一键触发常用意图，立即和 Cursor 联动。</p>
-                <div class="quick-grid" id="quickActions">
-                    <div class="quick" data-prompt="找一个 React 的待办事项应用">
-                        <strong>搜索项目</strong>
-                        找一个 React 的待办事项应用
+    <div class="app">
+        <div class="side">
+            <div class="panel">
+                <div class="section-title">配置</div>
+                <div class="config-item">
+                    <label>GitHub Token</label>
+                    <input type="text" id="githubTokenInput" value="${githubToken}" placeholder="在设置中填写 githubAI.githubToken" />
+                    <small>用于提高 GitHub API 速率限制。</small>
+                    <div class="config-actions">
+                        <a class="btn" href="command:workbench.action.openSettings?%5B%22githubAI.githubToken%22%5D">打开设置</a>
+                        <button class="btn" id="saveKeysBtn">保存配置</button>
                     </div>
-                    <div class="quick" data-prompt="下载刚才搜索到的第一个项目">
-                        <strong>下载项目</strong>
-                        下载刚才搜索到的第一个项目
-                    </div>
-                    <div class="quick" data-prompt="打开刚才下载的项目">
-                        <strong>打开项目</strong>
-                        在 Cursor 中打开最新下载的项目
-                    </div>
-                    <div class="quick" data-prompt="帮我优化这段代码的性能">
-                        <strong>修改代码</strong>
-                        描述要修改的当前文件
-                    </div>
-                    <div class="quick" data-prompt="解释这段代码在做什么">
-                        <strong>解释代码</strong>
-                        获取当前文件的解释
-                    </div>
-                    <div class="quick" data-prompt="列出我已下载的项目">
-                        <strong>项目列表</strong>
-                        查看已下载并可直接打开的项目
+                </div>
+                <div class="config-item">
+                    <label>DeepSeek API Key</label>
+                    <input type="text" id="deepseekKeyInput" value="${deepseekKey}" placeholder="在设置中填写 githubAI.deepseekApiKey" />
+                    <small>用于代码修改 / 解释。未配置会提示填写。</small>
+                    <div class="config-actions">
+                        <a class="btn" href="command:workbench.action.openSettings?%5B%22githubAI.deepseekApiKey%22%5D">打开设置</a>
                     </div>
                 </div>
             </div>
-
-            <div class="glass card">
-                <h2>🧭 使用提示</h2>
-                <p class="sub">先在设置里填写 GitHub Token 与 DeepSeek Key。搜索后说“下载第一个 / 打开项目”即可直接联动。</p>
-                <div class="pill-row">
-                    <div class="pill" data-prompt="找一个 Vue 的低代码平台">🔍 搜索低代码</div>
-                    <div class="pill" data-prompt="下载这个项目">📥 立即下载</div>
-                    <div class="pill" data-prompt="打开项目">📂 在 Cursor 打开</div>
-                    <div class="pill" data-prompt="给当前文件添加错误处理">✏️ 修改当前文件</div>
-                    <div class="pill" data-prompt="解释当前函数的作用">📖 解释函数</div>
+            <div class="panel">
+                <div class="section-title">快捷操作</div>
+                <div class="quick-list" id="quickActions">
+                    <div class="quick-item" data-prompt="找一个 React 的待办事项应用">搜索项目 · 找一个 React 的待办事项应用</div>
+                    <div class="quick-item" data-prompt="下载刚才搜索到的第一个项目">下载项目 · 下载刚才搜索到的第一个</div>
+                    <div class="quick-item" data-prompt="打开刚才下载的项目">打开项目 · 最新下载</div>
+                    <div class="quick-item" data-prompt="帮我优化这段代码的性能">修改代码 · 描述要修改的当前文件</div>
+                    <div class="quick-item" data-prompt="解释这段代码在做什么">解释代码 · 获取当前文件的解释</div>
+                    <div class="quick-item" data-prompt="列出我已下载的项目">项目列表 · 查看已下载的项目</div>
                 </div>
             </div>
         </div>
 
-        <div class="glass card chat-box">
-            <h2>💬 对话</h2>
-            <div class="messages" id="messages">
-                <div class="message assistant">
-                    👋 你好！我是你的 GitHub AI 助手。可以：
-                    <br>• 搜索并下载 GitHub 项目
-                    <br>• 在 Cursor 中打开项目
-                    <br>• 修改 / 解释当前文件代码
-                    <br><br>试试：<code>找一个 React 的待办事项应用</code>
+        <div class="main">
+            <div class="panel header">
+                <div class="title">
+                    <h1>GitHub AI 控制台</h1>
+                    <span>搜索 / 下载 / 修改 / 打开项目 · 深度联动 Cursor 工作区</span>
+                </div>
+                <div class="status">
+                    <span class="badge">GitHub Token：设置中</span>
+                    <span class="badge">DeepSeek Key：设置中</span>
+                    <span class="badge">工作区：自动识别</span>
                 </div>
             </div>
-            <div class="input-area">
-                <input type="text" id="messageInput" placeholder="输入想做的事，如：找一个 Python 爬虫项目…" autocomplete="off" />
-                <button id="sendButton">发送</button>
+
+            <div class="panel chat-box">
+                <div class="messages" id="messages">
+                    <div class="message assistant">
+                        你好！我是你的 GitHub AI 助手。可以：
+                        <br>• 搜索并下载 GitHub 项目
+                        <br>• 在 Cursor 中打开项目
+                        <br>• 修改 / 解释当前文件代码
+                        <br><br>试试：<code>找一个 React 的待办事项应用</code>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="输入想做的事，如：找一个 Python 爬虫项目…" autocomplete="off" />
+                    <button class="btn" id="sendButton">发送</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
         const quickActions = document.getElementById('quickActions');
+        const saveKeysBtn = document.getElementById('saveKeysBtn');
+        const githubTokenInput = document.getElementById('githubTokenInput');
+        const deepseekKeyInput = document.getElementById('deepseekKeyInput');
+        let isSending = false;
+
+        // 强制清理旧的 webview service worker，避免缓存旧版本页面/脚本
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            navigator.serviceWorker.getRegistrations().then((regs) => {
+                regs.forEach((reg) => reg.unregister());
+            }).catch(() => {});
+        }
 
         function addMessage(role, content, isLoading = false) {
             const messageDiv = document.createElement('div');
@@ -653,7 +660,8 @@ export class ChatPanel {
 
         function sendMessage(text) {
             const value = text.trim();
-            if (!value || sendButton.disabled) return;
+            if (!value || sendButton.disabled || isSending) return;
+            isSending = true;
 
             addMessage('user', value);
             messageInput.value = '';
@@ -663,8 +671,9 @@ export class ChatPanel {
 
             setTimeout(() => {
                 sendButton.disabled = false;
+                isSending = false;
                 messageInput.focus();
-            }, 120);
+            }, 300);
         }
 
         sendButton.addEventListener('click', () => sendMessage(messageInput.value));
@@ -677,11 +686,17 @@ export class ChatPanel {
 
         quickActions?.addEventListener('click', (e) => {
             const el = e.target instanceof HTMLElement ? e.target : null;
-            const target = el ? el.closest('[data-prompt]') as HTMLElement | null : null;
-            if (target) {
+            const target = el ? el.closest('[data-prompt]') : null;
+            if (target instanceof HTMLElement) {
                 const prompt = target.getAttribute('data-prompt') || '';
                 sendMessage(prompt);
             }
+        });
+
+        saveKeysBtn?.addEventListener('click', () => {
+            const githubToken = githubTokenInput && githubTokenInput instanceof HTMLInputElement ? githubTokenInput.value : '';
+            const deepseekKey = deepseekKeyInput && deepseekKeyInput instanceof HTMLInputElement ? deepseekKeyInput.value : '';
+            vscode.postMessage({ command: 'saveKeys', githubToken, deepseekKey });
         });
 
         document.querySelectorAll('.pill').forEach(btn => {
@@ -701,6 +716,7 @@ export class ChatPanel {
                 const messageDiv = addMessage(message.role, message.content, message.isLoading);
                 if (!message.isLoading) {
                     sendButton.disabled = false;
+                    isSending = false;
                     messageInput.focus();
                 }
             }

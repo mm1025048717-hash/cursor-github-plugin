@@ -6,7 +6,6 @@ import { CodeModificationRequest, CodeModificationResponse } from '../types';
 
 export class AICodeModifier {
   private config: vscode.WorkspaceConfiguration;
-  private apiKey: string | null = null;
   // DeepSeek API 文档: https://api-docs.deepseek.com/zh-cn/
   // base_url: https://api.deepseek.com
   // 路径: /chat/completions
@@ -14,15 +13,20 @@ export class AICodeModifier {
 
   constructor() {
     this.config = vscode.workspace.getConfiguration('githubAI');
-    // 从配置读取 API Key
-    this.apiKey = this.config.get<string>('deepseekApiKey', '') || null;
+  }
+
+  private getApiKey(): string | null {
+    this.config = vscode.workspace.getConfiguration('githubAI');
+    const key = this.config.get<string>('deepseekApiKey', '') || '';
+    return key || null;
   }
 
   /**
    * 使用 AI 修改代码
    */
   async modifyCode(request: CodeModificationRequest): Promise<CodeModificationResponse> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new Error('请先配置 DeepSeek API Key');
     }
 
@@ -77,7 +81,7 @@ ${context ? `额外上下文：${context}` : ''}
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`, // Bearer token 格式
+            'Authorization': `Bearer ${apiKey}`, // Bearer token 格式
           },
           timeout: 90000, // 代码生成可能需要更长时间
         }
@@ -196,7 +200,8 @@ ${context ? `额外上下文：${context}` : ''}
    * 解释代码
    */
   async explainCode(filePath: string): Promise<string> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new Error('请先配置 DeepSeek API Key');
     }
 
@@ -229,7 +234,7 @@ ${code}
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
           },
           timeout: 30000,
         }
